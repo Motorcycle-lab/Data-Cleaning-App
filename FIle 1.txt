@@ -1,0 +1,55 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+import pandas as pd
+import numpy as np
+
+app = FastAPI()
+
+# This class defines the structure of data coming from Google Sheets
+# It expects a dictionary with a key "data" containing a list of lists
+class SheetData(BaseModel):
+    data: list[list] 
+
+# 1. A simple check to see if your server is alive
+# If you visit your URL in a browser, you will see this message.
+@app.get("/")
+def read_root():
+    return {"status": "Online", "message": "Send POST requests to /clean"}
+
+# 2. The Main Cleaning Endpoint
+@app.post("/clean")
+def clean_spreadsheet(payload: SheetData):
+    try:
+        # A. Convert the incoming list to a Pandas DataFrame
+        # We assume the first row (index 0) contains the Headers
+        headers = payload.data[0]
+        rows = payload.data[1:]
+        
+        df = pd.DataFrame(rows, columns=headers)
+
+        # --- YOUR CLEANING LOGIC STARTS HERE ---
+        
+        # 1. Drop Duplicate Rows
+        df.drop_duplicates(inplace=True)
+
+        # 2. Fill Missing Values (NaN)
+        # JSON cannot handle "NaN", so we must replace them
+        df = df.fillna("Unknown") 
+
+        # --- YOUR CLEANING LOGIC ENDS HERE ---
+
+        # B. Convert back to list format for Google Sheets
+        # Get the new headers (in case you changed them)
+        new_headers = [df.columns.tolist()]
+        # Get the data values
+        new_values = df.values.tolist()
+        
+        # Combine them
+        clean_output = new_headers + new_values
+
+        # C. Return the clean data
+        return {"cleaned_data": clean_output}
+
+    except Exception as e:
+        # If something breaks, send the error back to Google Sheets
+        return {"error": str(e)}
