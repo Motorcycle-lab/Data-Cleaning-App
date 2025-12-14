@@ -52,4 +52,5 @@ def clean_spreadsheet(payload: SheetData):
 
     except Exception as e:
         # If something breaks, send the error back to Google Sheets
+
         return {"error": str(e)}
