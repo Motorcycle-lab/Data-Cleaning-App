@@ -5,52 +5,46 @@ import numpy as np
 
 app = FastAPI()
 
-# This class defines the structure of data coming from Google Sheets
-# It expects a dictionary with a key "data" containing a list of lists
+# 1. Update the Model: Now we expect Data AND a License Key
 class SheetData(BaseModel):
     data: list[list] 
+    license_key: str  # <--- NEW LINE
 
-# 1. A simple check to see if your server is alive
-# If you visit your URL in a browser, you will see this message.
 @app.get("/")
 def read_root():
     return {"status": "Online", "message": "Send POST requests to /clean"}
 
-# 2. The Main Cleaning Endpoint
 @app.post("/clean")
 def clean_spreadsheet(payload: SheetData):
+    
+    # 2. THE SECURITY CHECK (The Guard)
+    # This is your "Password". Only users who send this string can use the app.
+    # You can change "PRO-USER-2024" to whatever you want.
+    MY_SECRET_PASSWORD = "PRO-USER-2024"
+
+    if payload.license_key != MY_SECRET_PASSWORD:
+        # If the key is wrong, stop immediately.
+        return {"error": "ACCESS DENIED: Invalid License Key. Please purchase a key."}
+
+    # If the key is correct, the code continues...
     try:
-        # A. Convert the incoming list to a Pandas DataFrame
-        # We assume the first row (index 0) contains the Headers
+        # A. Convert to DataFrame
         headers = payload.data[0]
         rows = payload.data[1:]
         
         df = pd.DataFrame(rows, columns=headers)
 
-        # --- YOUR CLEANING LOGIC STARTS HERE ---
-        
-        # 1. Drop Duplicate Rows
+        # --- CLEANING LOGIC ---
         df.drop_duplicates(inplace=True)
-
-        # 2. Fill Missing Values (NaN)
-        # JSON cannot handle "NaN", so we must replace them
         df = df.fillna("Unknown") 
+        # ----------------------
 
-        # --- YOUR CLEANING LOGIC ENDS HERE ---
-
-        # B. Convert back to list format for Google Sheets
-        # Get the new headers (in case you changed them)
+        # B. Convert back to list
         new_headers = [df.columns.tolist()]
-        # Get the data values
         new_values = df.values.tolist()
-        
-        # Combine them
         clean_output = new_headers + new_values
 
-        # C. Return the clean data
         return {"cleaned_data": clean_output}
 
     except Exception as e:
-        # If something breaks, send the error back to Google Sheets
-
         return {"error": str(e)}
